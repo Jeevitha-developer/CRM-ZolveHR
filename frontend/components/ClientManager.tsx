@@ -437,7 +437,7 @@ export function ClientManager() {
 
                 {/* Notes */}
                 <div>
-                  <Label htmlFor="notes">Notes</Label>
+                  <Label htmlFor="notes">DB name</Label>
                   <Input
                     id="notes"
                     value={formData.notes}

@@ -1,5 +1,10 @@
 const express = require("express");
 const { pool } = require("../config/database");
+const bcrypt = require("bcryptjs");
+const mysql = require('mysql2/promise');
+const crypto = require("crypto");
+
+
 const {
   authenticateToken,
   authorizeRole,
@@ -11,6 +16,7 @@ const {
   validatePagination,
 } = require("../middleware/validation");
 const { asyncHandler } = require("../middleware/errorHandler");
+const { sendMail } = require("../routes/mailRouter");
 
 const router = express.Router();
 
@@ -190,7 +196,6 @@ router.post(
   "/",
   asyncHandler(async (req, res) => {
     const connection = await pool.getConnection();
-
     try {
       const {
         company_name,
@@ -265,6 +270,54 @@ router.post(
       WHERE c.id = ?
     `,
         [result.insertId]
+      );
+
+      const authPool = mysql.createPool({
+        host: process.env.DB_HOST,
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        database: notes,
+      });
+
+      const authConnection = await authPool.getConnection();
+
+      const rawPassword = crypto.randomBytes(4).toString("hex"); // e.g. "a1b2c3d4"
+
+      // Hash it for DB storage
+      const hashedPassword = await bcrypt.hash(rawPassword, 10);
+      try {
+        // Insert user into dynamic DB
+        await authConnection.execute(
+          `INSERT INTO register (name, email, password, role, EmployeeNo, Mobile) VALUES (?, ?, ?, ?, ?, ?)`,
+          [contact_person, email, hashedPassword, "hr", "admin", phone]
+        );
+      } finally {
+        authConnection.release();
+      }
+      await sendMail(
+        email, // recipient
+        "Welcome to Our Service 🎉",
+        `
+        <p>Hi ${contact_person},</p>
+    <p>Your account has been created successfully.</p>
+    <p>You can access your dashboard using the link below:</p>
+    <p>
+      <a href="http://localhost:5173/${notes}" 
+         style="background:#4CAF50;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;">
+        Access Dashboard
+      </a>
+    </p>
+    <p><b>Your login credentials:</b></p>
+    <p>Email: <b>${email}</b></p>
+    <p>Password: <b>${rawPassword}</b></p>
+    <br/>
+    <p>Please change your password after logging in for security.</p>
+    <br/>
+    <p>If the button doesn’t work, copy and paste this link in your browser:</p>
+    <p>
+    <p>http://localhost:5173/${notes}</p>
+</p>
+  `
       );
 
       res.status(201).json({
