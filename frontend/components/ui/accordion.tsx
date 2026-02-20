@@ -1,1 +1,0 @@
-// TypeScript version removed - use accordion.js instead
